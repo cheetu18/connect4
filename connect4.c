@@ -263,6 +263,7 @@ int main(int argc, char **argv)
 		memset(&hints, 0, sizeof(hints)); //make sure hints is empty
 		hints.ai_family = AF_UNSPEC; //ipv6 or ipv4 doesn't matter
 		hints.ai_socktype = SOCK_STREAM; //require TCP stream sockets
+		hints.ai_flags = AI_PASSIVE;
 		
 		//load res adderinfo struct 
 		if((status = getaddrinfo(NULL, myport, &hints, &res)) != 0){
