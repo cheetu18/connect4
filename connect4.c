@@ -338,7 +338,7 @@ int main(int argc, char **argv)
 		display_world(c);
 		turn_num ++;
 		if(win == 1){
-			printf("You lose!");
+			printf("You lose!\n");
 			printf("Game over!!!");
 			}
 		}
