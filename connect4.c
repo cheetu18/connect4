@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h> 
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
@@ -8,15 +8,22 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
+#include <ncurses.h>
 #define ROW 6
 #define COL 7
 #define EMPTY ' '
 #define SERVER 0
 #define CLIENT 1
+
+ /*ncurses variables */
+WINDOW *input_win;
+WINDOW *game_board;
+
 char* game_arr[COL]; char* current_player; char* myport;
 char token;
 char player1[50]; //server 
 char player2[50]; //client
+int sock;
 int pos, turn_num, c, win, turn = 0;
 char buf[2] = {'0', '\0'};
 
@@ -24,9 +31,8 @@ char buf[2] = {'0', '\0'};
 char accept_input();
 void whose_turn(int* i);
 void display_world(char c);
+void input_handle(char *str);
 
-//depending on wheter client or server, sock will be set to either client_sockfd or server_sockfd;
-int sock;      
 void teardown()
 {
 	//printf("\033[0m");
@@ -34,9 +40,9 @@ void teardown()
 	for(int i = 0; i < COL; i++){
 		free(game_arr[i]);
 	}
+	endwin();
+	clear();
 }
-
-/*error handling for accept_input function*/ 
 void check_pos(int* c)
 {
 /*removes case sensitivity i.e 'A' and 'a' are the same */
@@ -46,18 +52,18 @@ void check_pos(int* c)
 	
 /*'Q' & 'q' will quit game*/
 	if(*c == 81){
-	printf("Quitting the game");
+		input_handle("Qutting the game");
 		teardown();
 		exit(1);
 		   }
 /*anything outside of A-G will ask user to try again*/
 	if(*c < 65 || *c > 71){
-		printf("Invalid character.Valid characters are between A-G.\n");
+		input_handle("Invalid character.Valid characters are between A-G.");
 		accept_input();	
 		 }	
 /*try again if column is full */
 	if(game_arr[5][*c-65] != EMPTY){
-		printf("Cannot insert into full column.Please Try again!\n");	
+		input_handle("Cannot insert into full column. Please try again!");
 		accept_input();
 	}
 
@@ -69,7 +75,7 @@ int wincheck_dr(int row, int col)
 		return 0;
 	}
 	int i = 0;
-	while(i < 3){
+	while(i< 3){
 		if(game_arr[--row][++col]  != token){
 			return 0;
 		}
@@ -126,15 +132,45 @@ int tnum = 0;
 		return 0;		
 
 }
+void board_print(const char *str, ...)
+{
+	int endy, endx; 
+	werase(game_board);
+	box(game_board, 0, 0);	
+	
+	for(int i = ROW - 1; i >= 0; i--){
+		for(int j = 0; j < COL; j++){
+		//mvwaddch(game_board,    ,  , ACS_); 
+		
+			
+		//wprintw(game_board," |  %c ", game_arr[i][j]);
+
+		}
+		//wprintw(game_board," |\n");
+	}		
+
+
+	wrefresh(game_board);
+
+
+
+}
+
+void input_handle(char *str)
+{
+	werase(input_win);
+	box(input_win, 0, 0);
+	mvwprintw(input_win, 1, 1, "%s", str);
+	wmove(input_win, 2,2);
+}
 char accept_input()
 {
-		
-	printf("%s:Enter a location on the board: ", current_player);
-	scanf(" %c", &c);
+	input_handle("Enter a location on the board!");
+	c = wgetch(input_win);
+	werase(input_win);
 	check_pos(&c);
 	return c;
 }
-		
 int is_full(int pos){
 for(int i = 0; i <= COL; i++){
 	if(game_arr[5][i] == EMPTY){
@@ -151,7 +187,7 @@ void update_world(char c)
 
 
 	if(is_full(pos) == 1){
-	printf("Draw!\nGame Over!!!\n");
+	input_handle("Draw!GameOver!\n");
 	teardown();
 	exit(1);
 	}
@@ -186,19 +222,73 @@ void whose_turn(int* i)
 //creating visual representation of board 
 void display_world(char c)
 {
+	wclear(game_board);
+	box(game_board, 0, 0);	
+	wrefresh(game_board);
+	int x, y;
+	getmaxyx(game_board, y, x);
+	y = (y-5)/ 2;
+	x = 10;
+	wmove(game_board, y, x);
+
+
 	for(int i = ROW - 1; i >= 0; i--){
 		for(int j = 0; j < COL; j++){
-		
-		printf(" |  %c ", game_arr[i][j]);
-
+			wprintw(game_board, "|%c", game_arr[i][j]);		
+			x += 5;
+			wmove(game_board, y, x);
 		}
-		puts("  |\n");
+		wprintw(game_board, "|\n");
+		x = 10;
+		y += 3;
+		wmove(game_board, y, x);
+	}
+/*
+			wprintw(game_board, "| %c", game_arr[i][j]);	
+			x += 3;	
+			wmove(game_board, y, x);
+		}
+			wprintw(game_board, "|");
+			y += 3;
+			wmove(game_board, y, original);
+			x = original;
+			
 	}		
 
-		printf("Inserted disc into column: %c\n",c);
+	*/
+
+	wrefresh(game_board);
+
+		
+		
+		//input_handle("Inserted disc into column: %c\n", c);
+		//printw("Inserted disc into column: %c\n",c);
+
+
+
 }
+void init_win()
+{
+	int x0, y0, col, rows, xmax, ymax;
+	getmaxyx(stdscr, ymax, xmax);
+	col = (3 * xmax) / 5;
+	rows = ymax / 4;
+	y0 = ymax - ((ymax - rows) /3);
+	x0 = (xmax - col) / 2;
+	input_win = newwin(rows, col, y0, x0);
+	game_board = newwin(y0, xmax, 0, 0);
+}
+
+		
+
 int main(int argc, char **argv)
 { 
+	initscr();
+	init_win();
+	box(input_win, 0, 0);	
+	wrefresh(input_win);
+	
+
 	for(int i = 0; i < COL; i++){
 		 game_arr[i] = malloc(ROW * sizeof(int));
 	}
@@ -233,12 +323,13 @@ int main(int argc, char **argv)
 			exit(1);
 		}
 		
-			freeaddrinfo(res); //free res structure 
+			freeaddrinfo(res); 
 
 			//Start of Game: Client 
 			recv(client_sockfd, player1, 25, 0);
-			printf("Player 2, enter your name:\n");
-			fgets(player2, sizeof(player2), stdin);
+			input_handle("Player 2, please enter your name:");
+			wscanw(input_win, player2, sizeof(player2));	
+			werase(input_win);
 			send(client_sockfd, player2, 25, 0); 
 			sock = client_sockfd;
 
@@ -247,7 +338,8 @@ int main(int argc, char **argv)
 	else{
 		 turn = SERVER;
 		 int server_sockfd;
-		 printf("Setting up the game\n");
+		 attron(A_BOLD);
+		 input_handle("Setting up game!");
 
 		//server port 
 		if(argc == 2)
@@ -302,23 +394,24 @@ int main(int argc, char **argv)
 		freeaddrinfo(res); //free res structure 
 		
 		//Start of Game: Server 
-		printf("Player 1, please enter your name:\n"); 	
-		fgets(player1, sizeof(player1), stdin);
+		input_handle("Player 1, please enter your name");
+		wscanw(input_win, player1, sizeof(player1));	
 		send(server_sockfd, player1, 25, 0); 
 		recv(server_sockfd, player2, 25, 0);
 		sock = server_sockfd;   
 	}
 	
-	while(win == 0){
-
-		printf("The turn number is: %i\n", turn_num);
+	while (win == 0){
+		//mvwprintw(game_board, 1, 1, "The turn number is: %i\n",
+		//		turn_num);
+		//printw("The turn number is: %i\n", turn_num);
 		whose_turn(&turn_num);
-		printf("Turn:%s", current_player);
+		//printw("Turn:%s", current_player);
 
 		
-	if(turn_num % 2 == turn){ 
+	if (turn_num % 2 == turn){ 
 		//even is server  odd is client  
-		accept_input(&c);
+		accept_input();
 		check_pos(&c);
 		update_world(c);
 		display_world(c);
@@ -327,24 +420,24 @@ int main(int argc, char **argv)
 		send(sock, buf, strlen(buf), 0);  	 	
 		turn_num ++;
 		if(win == 1){
-			printf("You win!\n");
-			printf("Game Over!!!");
+			input_handle("YOU WIN. GAME OVER!");
+			wgetch(input_win);
 		}
 		}
 	else{
-		printf("waiting for partner to move...\n");
+		input_handle("Waiting for partner to move...");
 		recv(sock, buf,strlen(buf), 0);	
 		c = buf[0];
 		update_world(c);
 		display_world(c);
 		turn_num ++;
 		if(win == 1){
-			printf("You lose!\n");
-			printf("Game over!!!");
+			input_handle("YOU LOSE. GAME OVER!");
+			wgetch(input_win);
 			}
 		}
 
 	}
 	teardown();
 	return 0;
-}
+} 
